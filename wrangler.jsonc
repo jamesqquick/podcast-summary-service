@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "podcast-summary-service",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-19",
+  "observability": {
+    "enabled": true
+  },
+  "ai": {
+    "binding": "AI"
+  },
+  "r2_buckets": [
+    {
+      "binding": "EPISODES_BUCKET",
+      "bucket_name": "podcast-summary-episodes",
+      "preview_bucket_name": "podcast-summary-episodes-preview"
+    }
+  ],
+  "workflows": [
+    {
+      "name": "episode-workflow",
+      "binding": "EPISODE_WORKFLOW",
+      "class_name": "EpisodeWorkflow"
+    }
+  ],
+  "vars": {
+    // Public base URL used to build absolute audio URLs in API responses.
+    // Override per-environment; falls back to the request origin when empty.
+    "PUBLIC_BASE_URL": "",
+    // Default Deepgram Aura voice. See src/lib/tts/voices.ts for the full list.
+    "DEFAULT_VOICE": "asteria"
+  }
+}

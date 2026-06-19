@@ -1,0 +1,6 @@
+# Copy to .dev.vars for local development and set real values.
+# In production, set these with: wrangler secret put <NAME>
+
+# Shared bearer token required by the control API (POST /episodes, GET /episodes/:id).
+# Generate one with: openssl rand -hex 32
+API_TOKEN="dev-local-token-change-me"
