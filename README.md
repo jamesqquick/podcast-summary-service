@@ -145,15 +145,23 @@ pnpm cf-typegen
 
 ## Deploy
 
+First authenticate to the target account — either `wrangler login` (interactive)
+or `export CLOUDFLARE_API_TOKEN=...`. For accounts with more than one membership,
+also `export CLOUDFLARE_ACCOUNT_ID=...` so the target is unambiguous.
+
+One-shot (creates buckets, deploys, generates + sets `API_TOKEN`):
+
 ```bash
-# One-time: create the R2 buckets referenced in wrangler.jsonc
+CLOUDFLARE_ACCOUNT_ID=<account-id> ./scripts/provision.sh
+```
+
+Or the equivalent manual steps:
+
+```bash
 wrangler r2 bucket create podcast-summary-episodes
 wrangler r2 bucket create podcast-summary-episodes-preview
-
-# Set the API token secret
-wrangler secret put API_TOKEN
-
 pnpm run deploy
+wrangler secret put API_TOKEN   # paste a value, e.g. from `openssl rand -hex 32`
 ```
 
 ## Testing
