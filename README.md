@@ -116,8 +116,18 @@ curl https://<your-worker>/episodes/ep_8x1k... -H "Authorization: Bearer $API_TO
 | `EPISODE_WORKFLOW`| Workflow | `wrangler.jsonc` | The generation pipeline.                                       |
 | `PUBLIC_BASE_URL` | var      | `wrangler.jsonc` | Base URL for absolute audio links. Empty = use request origin. |
 | `DEFAULT_VOICE`   | var      | `wrangler.jsonc` | Default Aura voice when a request omits one.                   |
+| `AI_GATEWAY_ID`   | var      | `wrangler.jsonc` | Optional [AI Gateway](https://developers.cloudflare.com/ai-gateway/). Empty = direct. |
 
 **Aura voices:** `angus`, `asteria`, `arcas`, `orion`, `orpheus`, `athena`, `luna`, `zeus`, `perseus`, `helios`, `hera`, `stella`.
+
+### AI Gateway (optional)
+
+Both Workers AI calls (script + speech) can be routed through [AI Gateway](https://developers.cloudflare.com/ai-gateway/) for request logging, token/cost analytics, caching, and rate limiting. It's off by default. To enable, set `AI_GATEWAY_ID` in `wrangler.jsonc`:
+
+- `"default"` — AI Gateway auto-creates a gateway on first request (no dashboard setup).
+- `"<your-gateway-id>"` — use a gateway you created in the dashboard.
+
+Leave it empty to call the Workers AI binding directly. No code changes either way.
 
 ## Local development
 

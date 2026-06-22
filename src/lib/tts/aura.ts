@@ -1,4 +1,5 @@
 import { SpeechSynthesisError } from "../errors";
+import { gatewayRunOptions, type GatewayRunOptions } from "../ai-gateway";
 import type { AuraVoice } from "./voices";
 
 /** Deepgram Aura on Workers AI: natural pacing + 12 selectable voices. */
@@ -12,7 +13,7 @@ export const SPEECH_MODEL = "@cf/deepgram/aura-1";
 type SpeechRunner = (
   model: string,
   input: Record<string, unknown>,
-  options: { returnRawResponse: true },
+  options: { returnRawResponse: true } & GatewayRunOptions,
 ) => Promise<Response>;
 
 /**
@@ -26,6 +27,7 @@ export async function synthesizeSpeech(
   ai: Ai,
   text: string,
   voice: AuraVoice,
+  gatewayId?: string,
 ): Promise<Uint8Array> {
   const trimmed = text.trim();
   if (!trimmed) {
@@ -39,7 +41,7 @@ export async function synthesizeSpeech(
     response = await run(
       SPEECH_MODEL,
       { text: trimmed, speaker: voice, encoding: "mp3" },
-      { returnRawResponse: true },
+      { returnRawResponse: true, ...gatewayRunOptions(gatewayId) },
     );
   } catch (cause) {
     throw new SpeechSynthesisError(`Aura request failed: ${(cause as Error).message}`);

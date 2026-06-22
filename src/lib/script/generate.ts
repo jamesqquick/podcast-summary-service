@@ -1,4 +1,5 @@
 import { ScriptGenerationError } from "../errors";
+import { gatewayRunOptions, type GatewayRunOptions } from "../ai-gateway";
 import { buildScriptPrompt, type ScriptPromptOptions, type ScriptSource } from "./prompt";
 
 /** Llama 4 Scout: 131k context (fits many articles) + guided_json structured output. */
@@ -12,6 +13,11 @@ export interface GeneratedScript {
   script: string;
 }
 
+export interface GenerateScriptOptions extends ScriptPromptOptions {
+  /** Optional AI Gateway id to route this call through. */
+  gatewayId?: string;
+}
+
 /**
  * Minimal structural type for the Workers AI binding's text call. We narrow to
  * just what we use and isolate the cast here so callers stay fully typed.
@@ -19,26 +25,33 @@ export interface GeneratedScript {
 type TextRunner = (
   model: string,
   input: Record<string, unknown>,
+  options?: GatewayRunOptions,
 ) => Promise<{ response?: unknown }>;
 
 export async function generateScript(
   ai: Ai,
   sources: ScriptSource[],
-  options: ScriptPromptOptions = {},
+  options: GenerateScriptOptions = {},
 ): Promise<GeneratedScript> {
-  const { messages, schema, targetWords } = buildScriptPrompt(sources, options);
+  const { messages, schema, targetWords } = buildScriptPrompt(sources, {
+    requestedTitle: options.requestedTitle,
+  });
   const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.ceil(targetWords * 2) + 400);
 
   const run = ai.run as unknown as TextRunner;
 
   let raw: { response?: unknown };
   try {
-    raw = await run(SCRIPT_MODEL, {
-      messages,
-      guided_json: schema,
-      max_tokens: maxTokens,
-      temperature: 0.7,
-    });
+    raw = await run(
+      SCRIPT_MODEL,
+      {
+        messages,
+        guided_json: schema,
+        max_tokens: maxTokens,
+        temperature: 0.7,
+      },
+      gatewayRunOptions(options.gatewayId),
+    );
   } catch (cause) {
     throw new ScriptGenerationError(
       `Workers AI text generation failed: ${(cause as Error).message}`,

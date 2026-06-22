@@ -2,6 +2,7 @@ import { WorkflowEntrypoint } from "cloudflare:workers";
 import type { WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
 import type { Env, EpisodeSource, EpisodeWorkflowParams } from "../types";
+import { resolveGatewayId } from "../lib/ai-gateway";
 import { EpisodeStore } from "../lib/storage/episodes";
 import { FetchLinkExtractor, type ExtractedLink, type LinkExtractor } from "../lib/links/extractor";
 import { generateScript } from "../lib/script/generate";
@@ -34,6 +35,7 @@ export class EpisodeWorkflow extends WorkflowEntrypoint<Env, EpisodeWorkflowPara
   async run(event: WorkflowEvent<EpisodeWorkflowParams>, step: WorkflowStep): Promise<void> {
     const { episodeId, links, requestedTitle, voice } = event.payload;
     const store = new EpisodeStore(this.env.EPISODES_BUCKET);
+    const gatewayId = resolveGatewayId(this.env.AI_GATEWAY_ID);
 
     try {
       await step.do("mark-processing", async () => {
@@ -84,7 +86,7 @@ export class EpisodeWorkflow extends WorkflowEntrypoint<Env, EpisodeWorkflowPara
           generateScript(
             this.env.AI,
             extracted.map((e) => ({ url: e.url, title: e.title, text: e.text })),
-            { requestedTitle },
+            { requestedTitle, gatewayId },
           ),
       );
 
@@ -108,7 +110,7 @@ export class EpisodeWorkflow extends WorkflowEntrypoint<Env, EpisodeWorkflowPara
           `synthesize-${i}`,
           { retries: SPEECH_RETRY, timeout: "1 minute" },
           async () => {
-            const bytes = await synthesizeSpeech(this.env.AI, text, voice);
+            const bytes = await synthesizeSpeech(this.env.AI, text, voice, gatewayId);
             await store.putSegment(episodeId, i, bytes);
             return { index: i, byteLength: bytes.byteLength };
           },

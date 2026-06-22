@@ -28,6 +28,10 @@
     // Override per-environment; falls back to the request origin when empty.
     "PUBLIC_BASE_URL": "",
     // Default Deepgram Aura voice. See src/lib/tts/voices.ts for the full list.
-    "DEFAULT_VOICE": "asteria"
+    "DEFAULT_VOICE": "asteria",
+    // Optional AI Gateway. Empty = call Workers AI directly (default).
+    // Set to "default" to auto-create a gateway, or use a named gateway id, to
+    // get request logging, token/cost analytics, caching, and rate limiting.
+    "AI_GATEWAY_ID": ""
   }
 }
