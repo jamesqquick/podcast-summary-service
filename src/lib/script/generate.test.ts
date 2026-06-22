@@ -23,6 +23,21 @@ describe("parseScriptResponse", () => {
     expect(parseScriptResponse({ script: "only script" })).toEqual({ title: "", script: "only script" });
   });
 
+  it("recovers title and script from truncated JSON (token cap hit mid-script)", () => {
+    const truncated = '{"title":"My Episode","script":"Hello there. This is the start of a long script that got cut off mid-sentence because the model ran out of';
+    const result = parseScriptResponse(truncated);
+    expect(result.title).toBe("My Episode");
+    expect(result.script).toContain("Hello there.");
+    expect(result.script).toContain("ran out of");
+  });
+
+  it("unescapes embedded quotes and newlines when recovering", () => {
+    const truncated = '{"title":"T","script":"She said \\"hi\\".\\nThen left';
+    const result = parseScriptResponse(truncated);
+    expect(result.script).toContain('She said "hi".');
+    expect(result.script).toContain("\n");
+  });
+
   it("throws when no script is present", () => {
     expect(() => parseScriptResponse({ title: "T" })).toThrow(ScriptGenerationError);
     expect(() => parseScriptResponse("not json at all")).toThrow(ScriptGenerationError);

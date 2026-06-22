@@ -6,6 +6,7 @@ import { buildScriptPrompt, type ScriptPromptOptions, type ScriptSource } from "
 export const SCRIPT_MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct";
 
 const MAX_OUTPUT_TOKENS = 8000;
+const MIN_OUTPUT_TOKENS = 2048;
 const MIN_SCRIPT_CHARS = 200;
 
 export interface GeneratedScript {
@@ -36,9 +37,17 @@ export async function generateScript(
   const { messages, schema, targetWords } = buildScriptPrompt(sources, {
     requestedTitle: options.requestedTitle,
   });
-  const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.ceil(targetWords * 2) + 400);
+  // Budget generously: spoken words run ~1.4 tokens each, plus JSON overhead,
+  // and the model often writes past the target. Under-budgeting truncates the
+  // JSON mid-string. Floor at MIN to keep short episodes safe.
+  const maxTokens = Math.min(
+    MAX_OUTPUT_TOKENS,
+    Math.max(MIN_OUTPUT_TOKENS, Math.ceil(targetWords * 3) + 800),
+  );
 
-  const run = ai.run as unknown as TextRunner;
+  // Bind to `ai`: the binding's `run` relies on `this`, so a detached
+  // reference would throw at call time.
+  const run = ai.run.bind(ai) as unknown as TextRunner;
 
   let raw: { response?: unknown };
   try {
@@ -69,41 +78,82 @@ export async function generateScript(
   return { title, script };
 }
 
-/** Parse the model output, tolerating either a JSON object or a JSON string. */
+/**
+ * Parse the model output into a script. Tolerates three cases, in order:
+ *   1. an object response (already parsed by the binding),
+ *   2. a JSON string (whole, or embedded in surrounding prose),
+ *   3. a truncated/partial JSON string — recover `title`/`script` by regex so a
+ *      slightly-cut-off response still yields a usable episode.
+ */
 export function parseScriptResponse(response: unknown): GeneratedScript {
-  const candidate =
-    typeof response === "string" ? extractJsonObject(response) : (response as unknown);
-
-  if (!candidate || typeof candidate !== "object") {
-    throw new ScriptGenerationError("Model response was not valid JSON");
+  if (response && typeof response === "object") {
+    return coerceScript(response as Record<string, unknown>);
   }
 
-  const { title, script } = candidate as Record<string, unknown>;
+  if (typeof response === "string") {
+    const parsed = extractJsonObject(response);
+    if (parsed) return coerceScript(parsed);
+
+    const recovered = recoverScriptFields(response);
+    if (recovered) return recovered;
+  }
+
+  throw new ScriptGenerationError(`Model response was not usable (type=${typeof response})`);
+}
+
+function coerceScript(obj: Record<string, unknown>): GeneratedScript {
+  const { title, script } = obj;
   if (typeof script !== "string" || script.trim().length === 0) {
     throw new ScriptGenerationError("Model response did not include a script");
   }
-
-  return {
-    title: typeof title === "string" ? title : "",
-    script,
-  };
+  return { title: typeof title === "string" ? title : "", script };
 }
 
-function extractJsonObject(text: string): unknown {
+function extractJsonObject(text: string): Record<string, unknown> | null {
   const trimmed = text.trim();
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    const start = trimmed.indexOf("{");
-    const end = trimmed.lastIndexOf("}");
-    if (start !== -1 && end > start) {
-      try {
-        return JSON.parse(trimmed.slice(start, end + 1));
-      } catch {
-        return null;
-      }
+  const candidates = [trimmed];
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start !== -1 && end > start) candidates.push(trimmed.slice(start, end + 1));
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
+    } catch {
+      // try next candidate
     }
-    return null;
+  }
+  return null;
+}
+
+/**
+ * Best-effort recovery from a partial/truncated JSON string. Extracts the
+ * `title` and `script` field values directly, even if the closing quote/brace
+ * never arrived (e.g. the model hit the token cap mid-script).
+ */
+function recoverScriptFields(text: string): GeneratedScript | null {
+  const scriptMatch = /"script"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(text);
+  if (!scriptMatch) return null;
+  const script = jsonUnescape(scriptMatch[1]!);
+  if (script.trim().length === 0) return null;
+
+  const titleMatch = /"title"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(text);
+  const title = titleMatch ? jsonUnescape(titleMatch[1]!) : "";
+  return { title, script };
+}
+
+/** Unescape a captured JSON string body, tolerating a dangling backslash. */
+function jsonUnescape(body: string): string {
+  const safe = body.replace(/\\$/, "");
+  try {
+    return JSON.parse(`"${safe}"`);
+  } catch {
+    return safe
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t")
+      .replace(/\\r/g, "\r")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\");
   }
 }
 

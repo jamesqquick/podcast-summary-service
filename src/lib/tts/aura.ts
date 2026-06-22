@@ -34,7 +34,9 @@ export async function synthesizeSpeech(
     throw new SpeechSynthesisError("Cannot synthesize empty text");
   }
 
-  const run = ai.run as unknown as SpeechRunner;
+  // Bind to `ai`: the binding's `run` relies on `this`, so a detached
+  // reference would throw at call time.
+  const run = ai.run.bind(ai) as unknown as SpeechRunner;
 
   let response: Response;
   try {
