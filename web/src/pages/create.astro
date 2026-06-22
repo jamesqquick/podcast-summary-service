@@ -1,0 +1,29 @@
+---
+// Static shell page — all interactivity lives in the Generator island.
+export const prerender = true;
+import Layout from "../layouts/Layout.astro";
+import { Generator } from "../components/Generator";
+
+const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "";
+---
+
+<Layout
+  title="Create an episode"
+  description="Paste 2–5 links and Dropcast turns them into an AI-generated podcast episode in under two minutes."
+>
+  <div class="max-w-2xl mx-auto px-4 sm:px-6 py-14">
+    <div class="mb-10 text-center">
+      <h1 class="text-3xl sm:text-4xl font-black tracking-tight text-[var(--color-dc-text)] mb-2">
+        Drop your links
+      </h1>
+      <p class="text-[var(--color-dc-muted)]">
+        Paste 2–5 URLs. We'll read them, write a script, and narrate it as an MP3.
+      </p>
+    </div>
+
+    <Generator
+      client:load
+      turnstileSiteKey={turnstileSiteKey}
+    />
+  </div>
+</Layout>

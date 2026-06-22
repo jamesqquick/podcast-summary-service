@@ -50,6 +50,11 @@ export interface EpisodeRecord {
   audioKey?: string;
   audioByteLength?: number;
   workflowInstanceId?: string;
+  /**
+   * The spoken-word script, stored verbatim after generation (max 10 000 chars).
+   * Available on episodes created after this field was introduced.
+   */
+  transcript?: string;
   /** Present only when status is "failed". */
   error?: string;
 }
@@ -77,5 +82,7 @@ export interface EpisodeView {
   durationEstimateSeconds?: number;
   /** Absolute URL to the finished MP3, present once status is "ready". */
   audioUrl?: string;
+  /** The spoken-word script. Present on episodes generated after transcript storage was added. */
+  transcript?: string;
   error?: string;
 }

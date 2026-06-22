@@ -1,0 +1,26 @@
+# Build output
+dist/
+.output/
+
+# Astro generated files (committed locally; regenerated on every build)
+.astro/
+
+# Dependencies
+node_modules/
+
+# Env files — copy .env.example → .env for local dev
+.env
+.env.*
+!.env.example
+
+# Wrangler / CF
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# OS / editor
+.DS_Store
+*.log
+.idea/
+.vscode/

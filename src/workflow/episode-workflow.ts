@@ -98,6 +98,8 @@ export class EpisodeWorkflow extends WorkflowEntrypoint<Env, EpisodeWorkflowPara
           title: finalTitle,
           segmentCount: segments.length,
           durationEstimateSeconds: estimateDurationSeconds(script),
+          // Cap at 10 000 chars — enough for any practical episode length (~10 min).
+          transcript: script.slice(0, 10_000),
           stage: "synthesizing",
         });
         return { segments: segments.length };

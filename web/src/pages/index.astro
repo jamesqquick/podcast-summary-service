@@ -1,0 +1,151 @@
+---
+export const prerender = true;
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Dropcast" description="Drop your links. Get a podcast. Go.">
+  <!-- Hero -->
+  <section class="max-w-5xl mx-auto px-4 sm:px-6 pt-20 pb-16 text-center">
+    <p class="text-sm font-semibold tracking-widest text-[var(--color-dc-accent)] uppercase mb-4">
+      AI-generated audio
+    </p>
+    <h1 class="text-5xl sm:text-7xl font-black tracking-tight leading-none mb-6 text-[var(--color-dc-text)]">
+      Drop your links.<br />
+      <span class="text-[var(--color-dc-accent)]">Get a podcast.</span>
+    </h1>
+    <p class="text-xl text-[var(--color-dc-muted)] max-w-xl mx-auto mb-10">
+      Paste 2–5 URLs. Dropcast reads them, writes a cohesive script, and
+      narrates it as an MP3 — in under two minutes. No login required.
+    </p>
+    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+      <a
+        href="/create"
+        class="px-8 py-4 rounded-2xl bg-[var(--color-dc-accent)] hover:bg-[var(--color-dc-accent-hover)] text-white font-bold text-lg transition-colors shadow-lg shadow-[var(--color-dc-accent)]/25"
+      >
+        Make a podcast →
+      </a>
+      <a
+        href="#how"
+        class="px-8 py-4 rounded-2xl border border-[var(--color-dc-border)] text-[var(--color-dc-muted)] hover:text-[var(--color-dc-text)] hover:border-[var(--color-dc-faint)] font-semibold text-lg transition-colors"
+      >
+        See how it works
+      </a>
+    </div>
+  </section>
+
+  <!-- Demo episode card -->
+  <section class="max-w-3xl mx-auto px-4 sm:px-6 mb-20">
+    <div class="rounded-2xl border border-[var(--color-dc-border)] bg-[var(--color-dc-surface)] p-6 sm:p-8">
+      <p class="text-xs font-semibold text-[var(--color-dc-muted)] uppercase tracking-widest mb-3">
+        Example episode
+      </p>
+      <h2 class="text-xl font-bold text-[var(--color-dc-text)] mb-1">
+        This week in AI — June 2025 roundup
+      </h2>
+      <p class="text-sm text-[var(--color-dc-muted)] mb-5">
+        Generated from 4 links · 3 min 42 sec · Narrated by Asteria
+      </p>
+
+      <!-- Waveform placeholder -->
+      <div class="flex items-center gap-1 mb-5 h-10 overflow-hidden">
+        {Array.from({ length: 48 }, (_, i) => (
+          <div
+            class="w-1 rounded-full bg-[var(--color-dc-accent)] opacity-70 flex-shrink-0"
+            style={`height: ${Math.round(20 + Math.abs(Math.sin(i * 0.7)) * 24)}px`}
+          />
+        ))}
+      </div>
+
+      <div class="flex items-center justify-between">
+        <div class="flex gap-3 text-xs text-[var(--color-dc-muted)]">
+          <span>0:00</span>
+          <span>/</span>
+          <span>3:42</span>
+        </div>
+        <a
+          href="/create"
+          class="text-sm font-semibold text-[var(--color-dc-accent-light)] hover:text-[var(--color-dc-accent)] transition-colors"
+        >
+          Make your own →
+        </a>
+      </div>
+
+      <!-- Note: swap this static card for a real episode once you have a demo episode ID -->
+      <!-- <AudioPlayer client:load src="https://your-api/episodes/DEMO_ID/audio.mp3" title="Demo episode" /> -->
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section id="how" class="max-w-5xl mx-auto px-4 sm:px-6 py-16 border-t border-[var(--color-dc-border)]">
+    <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-center mb-14">
+      Three steps. Two minutes.
+    </h2>
+    <div class="grid sm:grid-cols-3 gap-8">
+      {[
+        {
+          num: "01",
+          title: "Drop your links",
+          body: "Paste 2–5 URLs — articles, blog posts, docs, anything. Dropcast fetches and reads them all.",
+          icon: "🔗",
+        },
+        {
+          num: "02",
+          title: "AI writes the script",
+          body: "Llama 4 Scout reads every page and writes a single cohesive spoken-word summary.",
+          icon: "✍️",
+        },
+        {
+          num: "03",
+          title: "Listen and share",
+          body: "Deepgram Aura narrates it as an MP3. Share the link — anyone can listen, no login needed.",
+          icon: "🎙️",
+        },
+      ].map(({ num, title, body, icon }) => (
+        <div class="rounded-2xl border border-[var(--color-dc-border)] bg-[var(--color-dc-surface)] p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="text-2xl">{icon}</span>
+            <span class="text-xs font-bold text-[var(--color-dc-accent)] tracking-widest">{num}</span>
+          </div>
+          <h3 class="text-lg font-bold text-[var(--color-dc-text)] mb-2">{title}</h3>
+          <p class="text-[var(--color-dc-muted)] text-sm leading-relaxed">{body}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Social proof / use cases -->
+  <section class="max-w-5xl mx-auto px-4 sm:px-6 py-16 border-t border-[var(--color-dc-border)]">
+    <h2 class="text-2xl font-black tracking-tight text-center mb-10 text-[var(--color-dc-text)]">
+      What people drop
+    </h2>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {[
+        { label: "Morning news briefings", desc: "5 articles → a 4-minute commute podcast" },
+        { label: "Research deep-dives", desc: "Digest 5 papers without opening a single tab" },
+        { label: "Release notes roundups", desc: "Catch up on what shipped this week" },
+        { label: "Interview prep", desc: "Turn a company's blog into background audio" },
+        { label: "Team context drops", desc: "Share a briefing instead of a doc dump" },
+        { label: "Weekly AI roundups", desc: "The best links, narrated, in your inbox" },
+      ].map(({ label, desc }) => (
+        <div class="rounded-xl border border-[var(--color-dc-border)] bg-[var(--color-dc-surface)] px-5 py-4">
+          <p class="font-semibold text-sm text-[var(--color-dc-text)] mb-1">{label}</p>
+          <p class="text-xs text-[var(--color-dc-muted)]">{desc}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="max-w-5xl mx-auto px-4 sm:px-6 py-20 text-center border-t border-[var(--color-dc-border)]">
+    <h2 class="text-4xl sm:text-5xl font-black tracking-tight mb-4">
+      Ready to drop?
+    </h2>
+    <p class="text-[var(--color-dc-muted)] mb-8 text-lg">No login. No credit card. Just links.</p>
+    <a
+      href="/create"
+      class="inline-block px-10 py-4 rounded-2xl bg-[var(--color-dc-accent)] hover:bg-[var(--color-dc-accent-hover)] text-white font-bold text-lg transition-colors shadow-xl shadow-[var(--color-dc-accent)]/30"
+    >
+      Make a podcast →
+    </a>
+  </section>
+</Layout>

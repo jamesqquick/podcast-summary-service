@@ -82,11 +82,14 @@ export async function generateScript(
 }
 
 /**
- * Parse the model output into a script. Tolerates three cases, in order:
+ * Parse the model output into a script. Tolerates five cases, in order:
  *   1. an object response (already parsed by the binding),
  *   2. a JSON string (whole, or embedded in surrounding prose),
- *   3. a truncated/partial JSON string — recover `title`/`script` by regex so a
- *      slightly-cut-off response still yields a usable episode.
+ *   3. a markdown-fenced JSON block (```json … ```) — strip fences and retry,
+ *   4. a truncated/partial JSON string — recover `title`/`script` by regex so a
+ *      slightly-cut-off response still yields a usable episode,
+ *   5. plain prose — the model ignored the JSON instruction entirely; sanitize
+ *      and use it as the script so the episode still completes.
  */
 export function parseScriptResponse(response: unknown): GeneratedScript {
   if (response && typeof response === "object") {
@@ -94,11 +97,27 @@ export function parseScriptResponse(response: unknown): GeneratedScript {
   }
 
   if (typeof response === "string") {
+    // Case 2: whole JSON or JSON embedded in prose.
     const parsed = extractJsonObject(response);
     if (parsed) return coerceScript(parsed);
 
+    // Case 3: markdown code fence — strip ``` / ```json wrapper and retry.
+    const stripped = stripMarkdownFences(response);
+    if (stripped !== response) {
+      const parsedStripped = extractJsonObject(stripped);
+      if (parsedStripped) return coerceScript(parsedStripped);
+    }
+
+    // Case 4: truncated/partial JSON — regex field recovery.
     const recovered = recoverScriptFields(response);
     if (recovered) return recovered;
+
+    // Case 5: plain prose — model ignored JSON instruction. Use it directly.
+    const cleaned = sanitizeSpokenText(response);
+    if (cleaned.length >= MIN_SCRIPT_CHARS) {
+      console.warn("[script] Model returned plain text instead of JSON; using as script.");
+      return { title: "", script: cleaned };
+    }
   }
 
   throw new ScriptGenerationError(`Model response was not usable (type=${typeof response})`);
@@ -110,6 +129,15 @@ function coerceScript(obj: Record<string, unknown>): GeneratedScript {
     throw new ScriptGenerationError("Model response did not include a script");
   }
   return { title: typeof title === "string" ? title : "", script };
+}
+
+/** Strip opening/closing markdown code fences (``` or ```json). */
+function stripMarkdownFences(text: string): string {
+  return text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/, "")
+    .trim();
 }
 
 function extractJsonObject(text: string): Record<string, unknown> | null {

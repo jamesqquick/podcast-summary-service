@@ -1,0 +1,227 @@
+---
+// SSR — fetches episode data server-side so OG tags are in the initial HTML.
+import Layout from "../../layouts/Layout.astro";
+import { AudioPlayer } from "../../components/AudioPlayer";
+import { getEpisode } from "../../lib/api";
+import type { EpisodeView } from "../../lib/api";
+
+const { id } = Astro.params;
+if (!id) return Astro.redirect("/");
+
+// In Phase 1 the GET /episodes/:id endpoint will be public (no token).
+// Until then, use the server-side API token so the share page renders correctly.
+const apiUrl = import.meta.env.API_URL ?? "";
+const apiToken = import.meta.env.API_TOKEN;
+
+let episode: EpisodeView | null = null;
+let fetchError: string | null = null;
+
+try {
+  episode = await getEpisode(apiUrl, id, apiToken);
+} catch (err) {
+  fetchError = err instanceof Error ? err.message : "Could not load episode.";
+}
+
+// Redirect bad IDs cleanly.
+if (fetchError && fetchError.includes("404")) {
+  return Astro.redirect("/");
+}
+
+const isReady = episode?.status === "ready";
+const isFailed = episode?.status === "failed";
+const isProcessing = !isReady && !isFailed && !fetchError;
+
+// Per-episode OG card — only set for ready episodes; falls back to og-default.png otherwise.
+const ogImage = isReady ? new URL(`/og/${id}.png`, Astro.url).href : undefined;
+
+// Build the shareable tweet text.
+const tweetText = episode
+  ? encodeURIComponent(
+      `"${episode.title}" — an AI-generated podcast from @dropcast_app\n\nListen here:`
+    )
+  : "";
+const shareUrl = encodeURIComponent(Astro.url.href);
+const tweetUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${shareUrl}`;
+
+// Episode duration display.
+function formatDuration(seconds?: number): string {
+  if (!seconds) return "";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+// Reading-time estimate based on source count.
+const sourceCount = episode?.sources?.filter((s) => s.ok).length ?? 0;
+---
+
+<Layout
+  title={episode?.title ?? "Episode"}
+  description={`An AI-generated podcast from ${sourceCount} link${sourceCount !== 1 ? "s" : ""} · Powered by Dropcast`}
+  canonical={Astro.url.href}
+  ogImage={ogImage}
+>
+  <div class="max-w-3xl mx-auto px-4 sm:px-6 py-12">
+
+    <!-- Loading / processing state -->
+    {isProcessing && !fetchError && (
+      <div class="rounded-2xl border border-[var(--color-dc-border)] bg-[var(--color-dc-surface)] p-10 text-center">
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[var(--color-dc-accent-subtle)] mb-6">
+          <span class="text-2xl animate-pulse">🎙️</span>
+        </div>
+        <h1 class="text-2xl font-black tracking-tight mb-2">Your episode is generating…</h1>
+        <p class="text-[var(--color-dc-muted)] mb-6">This takes about 90 seconds. You can leave and come back — the link stays live.</p>
+        <p class="text-xs text-[var(--color-dc-faint)] font-mono">{id}</p>
+        <!-- Auto-refresh every 5s while processing -->
+        <meta http-equiv="refresh" content="5" />
+      </div>
+    )}
+
+    <!-- Error state -->
+    {(fetchError || isFailed) && (
+      <div class="rounded-2xl border border-[var(--color-dc-error)]/30 bg-[var(--color-dc-surface)] p-10 text-center">
+        <p class="text-3xl mb-4">⚠️</p>
+        <h1 class="text-2xl font-black tracking-tight mb-2">This episode failed</h1>
+        <p class="text-[var(--color-dc-muted)] mb-6">{episode?.error ?? fetchError ?? "Something went wrong."}</p>
+        <a href="/create" class="inline-block px-6 py-3 rounded-xl bg-[var(--color-dc-accent)] hover:bg-[var(--color-dc-accent-hover)] text-white font-semibold transition-colors">
+          Try again →
+        </a>
+      </div>
+    )}
+
+    <!-- Ready state -->
+    {isReady && episode && (
+      <>
+        <!-- Title + meta -->
+        <div class="mb-8">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--color-dc-accent-subtle)] text-[var(--color-dc-accent-light)] text-xs font-semibold">
+              <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-dc-ok)]"></span>
+              Ready to listen
+            </span>
+            {episode.durationEstimateSeconds && (
+              <span class="text-xs text-[var(--color-dc-muted)]">
+                {formatDuration(episode.durationEstimateSeconds)}
+              </span>
+            )}
+          </div>
+          <h1 class="text-3xl sm:text-4xl font-black tracking-tight text-[var(--color-dc-text)] mb-2 leading-tight">
+            {episode.title}
+          </h1>
+          <p class="text-sm text-[var(--color-dc-muted)]">
+            From {sourceCount} source{sourceCount !== 1 ? "s" : ""}
+            · Narrated by <span class="capitalize">{episode.voice}</span>
+            · {new Date(episode.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+          </p>
+        </div>
+
+        <!-- Audio player — use the Astro proxy so the browser always hits a
+             same-origin URL, regardless of what PUBLIC_BASE_URL is set to
+             on the Worker (avoids wrong-host and CORS issues in all envs). -->
+        <div class="mb-8">
+          <AudioPlayer
+            client:load
+            src={`/api/audio/${id}`}
+            title={episode.title}
+          />
+        </div>
+
+        <!-- Share bar -->
+        <div class="flex flex-wrap items-center gap-3 mb-10 p-4 rounded-xl border border-[var(--color-dc-border)] bg-[var(--color-dc-surface)]">
+          <span class="text-sm font-semibold text-[var(--color-dc-muted)]">Share:</span>
+          <a
+            href={tweetUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1DA1F2]/10 hover:bg-[#1DA1F2]/20 text-[#1DA1F2] text-sm font-semibold transition-colors"
+          >
+            𝕏 Tweet this episode
+          </a>
+          <button
+            id="copy-link-btn"
+            data-url={Astro.url.href}
+            class="flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--color-dc-border)] hover:border-[var(--color-dc-faint)] text-[var(--color-dc-muted)] hover:text-[var(--color-dc-text)] text-sm font-semibold transition-colors"
+          >
+            Copy link
+          </button>
+        </div>
+
+        <!-- Sources -->
+        {episode.sources.length > 0 && (
+          <section class="mb-10">
+            <h2 class="text-sm font-bold text-[var(--color-dc-muted)] uppercase tracking-widest mb-3">
+              Sources ({episode.sources.length})
+            </h2>
+            <ul class="space-y-2">
+              {episode.sources.map((source) => (
+                <li>
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class={`flex items-start gap-3 p-3 rounded-xl border transition-colors group ${
+                      source.ok
+                        ? "border-[var(--color-dc-border)] hover:border-[var(--color-dc-accent)]/40 bg-[var(--color-dc-surface)]"
+                        : "border-dashed border-[var(--color-dc-border)] opacity-50"
+                    }`}
+                  >
+                    <span class="mt-0.5 text-sm">{source.ok ? "📄" : "⚠️"}</span>
+                    <span class="flex-1 min-w-0">
+                      {source.title && (
+                        <span class="block text-sm font-medium text-[var(--color-dc-text)] group-hover:text-[var(--color-dc-accent-light)] transition-colors truncate">
+                          {source.title}
+                        </span>
+                      )}
+                      <span class="block text-xs text-[var(--color-dc-muted)] truncate">{source.url}</span>
+                    </span>
+                    <span class="text-[var(--color-dc-faint)] text-xs mt-0.5 flex-shrink-0">↗</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <!-- Transcript (shown when available — needs Worker update to persist script) -->
+        {episode.transcript && (
+          <section class="mb-10">
+            <h2 class="text-sm font-bold text-[var(--color-dc-muted)] uppercase tracking-widest mb-3">
+              Transcript
+            </h2>
+            <div class="prose prose-sm max-w-none rounded-xl border border-[var(--color-dc-border)] bg-[var(--color-dc-surface)] p-6 text-[var(--color-dc-muted)] leading-relaxed">
+              {episode.transcript.split("\n\n").map((para) => (
+                <p class="mb-4 last:mb-0">{para}</p>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <!-- Make your own CTA -->
+        <div class="rounded-2xl border border-[var(--color-dc-accent)]/20 bg-[var(--color-dc-accent-subtle)] p-8 text-center">
+          <p class="text-lg font-bold text-[var(--color-dc-text)] mb-1">Like what you heard?</p>
+          <p class="text-[var(--color-dc-muted)] text-sm mb-5">Make your own podcast episode from any links — free, no login required.</p>
+          <a
+            href="/create"
+            class="inline-block px-8 py-3 rounded-xl bg-[var(--color-dc-accent)] hover:bg-[var(--color-dc-accent-hover)] text-white font-bold transition-colors"
+          >
+            Make your own →
+          </a>
+        </div>
+      </>
+    )}
+  </div>
+
+  <!-- Copy-link button logic (minimal JS, no island needed) -->
+  <script>
+    const btn = document.getElementById("copy-link-btn");
+    if (btn) {
+      btn.addEventListener("click", async () => {
+        const url = btn.dataset.url ?? window.location.href;
+        await navigator.clipboard.writeText(url);
+        const original = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = original; }, 2000);
+      });
+    }
+  </script>
+</Layout>

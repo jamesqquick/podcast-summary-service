@@ -1,0 +1,41 @@
+{
+  "name": "dropcast-web",
+  "account_id": "4426cbeacb457b1ca1b865d6c36ced0d",
+  "compatibility_date": "2026-06-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "dist/_worker.js",
+  "assets": {
+    "directory": "dist/"
+  },
+  "observability": { "enabled": true },
+
+  "kv_namespaces": [
+    {
+      "binding": "RATE_KV",
+      "id": "4fc7c807e010467b97347dfe981a8995",
+      "preview_id": "0082c95a2e5c4ea68ad782df7ccdd108"
+    }
+  ],
+
+  // Set these as vars or secrets:
+  //   wrangler secret put API_TOKEN
+  //   wrangler secret put API_URL   (or set as a plain var below)
+  //   wrangler secret put TURNSTILE_SECRET_KEY
+  "vars": {
+    // The URL of the Dropcast API Worker (no trailing slash).
+    // Override per environment as needed.
+    "API_URL": "https://jqq-podcast-generator.examples.workers.dev",
+    // Public Turnstile site key (safe to commit once you have one).
+    // Get from https://dash.cloudflare.com → Turnstile.
+    "PUBLIC_TURNSTILE_SITE_KEY": "",
+    // Max generations per IP per day. Change without redeployment via Cloudflare dashboard.
+    "IP_DAILY_LIMIT": "3",
+    // Set to any non-empty string to skip the per-IP rate limit check.
+    // Use in .dev.vars for local development only — never set in production.
+    "DISABLE_RATE_LIMIT": ""
+  }
+
+  // Secrets — do not put these here. Provision via:
+  //   wrangler secret put API_TOKEN
+  //   wrangler secret put TURNSTILE_SECRET_KEY
+}

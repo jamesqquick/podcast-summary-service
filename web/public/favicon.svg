@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="8" fill="#7c3aed"/>
+  <!-- Drop shape -->
+  <path d="M16 5 C16 5 9 14 9 18.5 C9 22.1 12.1 25 16 25 C19.9 25 23 22.1 23 18.5 C23 14 16 5 16 5Z" fill="white"/>
+  <!-- Sound waves emanating right -->
+  <path d="M20 14 Q23 18 20 22" stroke="#7c3aed" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M22 12 Q26 18 22 24" stroke="#7c3aed" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.5"/>
+</svg>

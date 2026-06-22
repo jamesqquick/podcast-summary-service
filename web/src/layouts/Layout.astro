@@ -1,0 +1,83 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description?: string;
+  /** Absolute URL to a social card image. Falls back to a generic Dropcast image. */
+  ogImage?: string;
+  /** Canonical URL for this page. */
+  canonical?: string;
+}
+
+const {
+  title,
+  description = "Drop your links. Get a podcast. Go.",
+  ogImage,
+  canonical,
+} = Astro.props;
+
+const fullTitle = title === "Dropcast" ? "Dropcast" : `${title} · Dropcast`;
+const ogImg = ogImage ?? new URL("/og-default.png", Astro.site ?? Astro.url).href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+
+    <!-- OG / Twitter -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImg} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImg} />
+
+    {canonical && <link rel="canonical" href={canonical} />}
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+
+  <body class="min-h-screen flex flex-col">
+    <!-- Nav -->
+    <header class="border-b border-[var(--color-dc-border)] sticky top-0 z-50 backdrop-blur-md bg-[var(--color-dc-bg)]/80">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-2 group">
+          <img src="/favicon.svg" alt="" class="w-7 h-7" />
+          <span class="font-bold text-[var(--color-dc-text)] tracking-tight text-lg">
+            Drop<span class="text-[var(--color-dc-accent)]">cast</span>
+          </span>
+        </a>
+        <a
+          href="/create"
+          class="px-4 py-1.5 rounded-full bg-[var(--color-dc-accent)] hover:bg-[var(--color-dc-accent-hover)] text-white text-sm font-semibold transition-colors"
+        >
+          Make one →
+        </a>
+      </div>
+    </header>
+
+    <!-- Page content -->
+    <main class="flex-1">
+      <slot />
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-[var(--color-dc-border)] py-8 mt-16">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-[var(--color-dc-muted)]">
+        <span>
+          Built by <a href="https://jamesqquick.com" class="text-[var(--color-dc-accent-light)] hover:underline">James Q Quick</a>
+          · Powered by <a href="https://workers.cloudflare.com" class="hover:underline">Cloudflare Workers AI</a>
+        </span>
+        <span>Drop links. Get a podcast.</span>
+      </div>
+    </footer>
+  </body>
+</html>

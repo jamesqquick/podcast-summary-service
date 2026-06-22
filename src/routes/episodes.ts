@@ -108,6 +108,7 @@ function toView(record: EpisodeRecord, base: string): EpisodeView {
     durationEstimateSeconds: record.durationEstimateSeconds,
     audioUrl:
       record.status === "ready" ? `${base}/episodes/${record.id}/audio.mp3` : undefined,
+    transcript: record.transcript,
     error: record.error,
   };
 }

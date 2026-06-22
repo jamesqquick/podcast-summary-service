@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+/* ── Dropcast design tokens ──────────────────────────────────────── */
+@theme {
+  /* Backgrounds */
+  --color-dc-bg: #08080f;
+  --color-dc-surface: #0f0f1a;
+  --color-dc-surface-2: #14142a;
+  --color-dc-border: #1e1e35;
+
+  /* Brand */
+  --color-dc-accent: #7c3aed;
+  --color-dc-accent-hover: #6d28d9;
+  --color-dc-accent-light: #a78bfa;
+  --color-dc-accent-subtle: #2a1a4a;
+
+  /* Text */
+  --color-dc-text: #f0eff9;
+  --color-dc-muted: #8b8a9b;
+  --color-dc-faint: #4a4960;
+
+  /* Status */
+  --color-dc-ok: #34d399;
+  --color-dc-warn: #fbbf24;
+  --color-dc-error: #f87171;
+
+  /* Fonts */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+/* ── Base ────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
+  background-color: var(--color-dc-bg);
+  color: var(--color-dc-text);
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar to match dark theme */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-dc-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-dc-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-dc-faint); }
