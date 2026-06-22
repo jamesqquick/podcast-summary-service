@@ -29,10 +29,9 @@
     "PUBLIC_BASE_URL": "",
     // Default Deepgram Aura voice. See src/lib/tts/voices.ts for the full list.
     "DEFAULT_VOICE": "asteria",
-    // Optional AI Gateway. Empty = call Workers AI directly.
-    // A custom-named gateway must be created first (dashboard or REST API; the
-    // wrangler OAuth token cannot create one). Once "jqq-podcast-generator-gw"
-    // exists, set this to that id and redeploy. "default" auto-creates instead.
-    "AI_GATEWAY_ID": ""
+    // AI Gateway — routes both AI calls (script + speech) through the named
+    // gateway for request logging, token/cost analytics, caching, and rate
+    // limiting. Gateway must exist before deploying with a non-empty value.
+    "AI_GATEWAY_ID": "jqq-podcast-generator-gw"
   }
 }

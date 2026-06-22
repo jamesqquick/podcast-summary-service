@@ -34,7 +34,7 @@ export async function generateScript(
   sources: ScriptSource[],
   options: GenerateScriptOptions = {},
 ): Promise<GeneratedScript> {
-  const { messages, schema, targetWords } = buildScriptPrompt(sources, {
+  const { messages, targetWords } = buildScriptPrompt(sources, {
     requestedTitle: options.requestedTitle,
   });
   // Budget generously: spoken words run ~1.4 tokens each, plus JSON overhead,
@@ -51,11 +51,14 @@ export async function generateScript(
 
   let raw: { response?: unknown };
   try {
+    // Note: guided_json is intentionally omitted — it does not propagate
+    // correctly through AI Gateway. The system prompt instructs the model
+    // to return JSON, and parseScriptResponse handles the full range of
+    // response shapes (parsed object, JSON string, or truncated string).
     raw = await run(
       SCRIPT_MODEL,
       {
         messages,
-        guided_json: schema,
         max_tokens: maxTokens,
         temperature: 0.7,
       },
