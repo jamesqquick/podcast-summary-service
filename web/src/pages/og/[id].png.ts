@@ -30,8 +30,8 @@ function ensureResvg(requestUrl: URL): Promise<void> {
   return resvgInitPromise;
 }
 
-function fallbackImage(requestUrl: URL): Promise<Response> {
-  return fetch(new URL("/og-default.png", requestUrl));
+function fallbackImage(env: App.Locals["runtime"]["env"], requestUrl: URL): Promise<Response> {
+  return env.ASSETS.fetch(new URL("/og-default.png", requestUrl).href);
 }
 
 // ── Waveform (deterministic per episode ID) ──────────────────────────────────
@@ -258,7 +258,7 @@ export const GET: APIRoute = async (context) => {
     await ensureResvg(context.url);
   } catch (err) {
     console.error("[og] resvg init failed:", err);
-    return fallbackImage(context.url);
+    return fallbackImage(env, context.url);
   }
 
   // Load Inter Bold font from static assets
@@ -269,7 +269,7 @@ export const GET: APIRoute = async (context) => {
     fontData = await fontRes.arrayBuffer();
   } catch (err) {
     console.error("[og] font load failed:", err);
-    return fallbackImage(context.url);
+    return fallbackImage(env, context.url);
   }
 
   // Render: element tree → SVG → PNG

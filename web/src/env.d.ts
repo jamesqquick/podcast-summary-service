@@ -3,6 +3,8 @@
 
 interface CloudflareEnv {
   // Bindings
+  /** Static assets binding injected by the Cloudflare adapter. */
+  ASSETS: Fetcher;
   RATE_KV: KVNamespace;
   /** Service binding to the jqq-podcast-generator backend Worker. */
   PODCAST_API: Fetcher;
