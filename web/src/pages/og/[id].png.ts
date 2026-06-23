@@ -104,6 +104,7 @@ function buildCard(title: string, meta: string, bars: number[]): SatoriNode {
       flexDirection: "column",
       padding: "56px 72px 52px",
       background: `linear-gradient(135deg, ${C.BG} 0%, ${C.SURFACE} 55%, ${C.DEEP} 100%)`,
+      fontFamily: "Lato",
       position: "relative",
       overflow: "hidden",
     },
@@ -261,27 +262,45 @@ export const GET: APIRoute = async (context) => {
     return fallbackImage(context.url);
   }
 
-  // Load Inter Bold font from static assets
-  let fontData: ArrayBuffer;
+  // Satori supports TTF/OTF/WOFF, not WOFF2/EOT.
+  let regularFontData: ArrayBuffer;
+  let boldFontData: ArrayBuffer;
   try {
-    const fontRes = await fetch(new URL("/fonts/inter-bold.ttf", context.url));
-    if (!fontRes.ok) throw new Error(`Font fetch failed: ${fontRes.status}`);
-    fontData = await fontRes.arrayBuffer();
+    const [regularFontRes, boldFontRes] = await Promise.all([
+      fetch(new URL("/fonts/lato-regular.ttf", context.url)),
+      fetch(new URL("/fonts/lato-extrabold.ttf", context.url)),
+    ]);
+    if (!regularFontRes.ok) throw new Error(`Regular font fetch failed: ${regularFontRes.status}`);
+    if (!boldFontRes.ok) throw new Error(`Bold font fetch failed: ${boldFontRes.status}`);
+    [regularFontData, boldFontData] = await Promise.all([
+      regularFontRes.arrayBuffer(),
+      boldFontRes.arrayBuffer(),
+    ]);
   } catch (err) {
     console.error("[og] font load failed:", err);
     return fallbackImage(context.url);
   }
 
   // Render: element tree → SVG → PNG
-  const svg = await satori(card as unknown as ReactNode, {
-    width: 1200,
-    height: 630,
-    fonts: [{ name: "Inter", data: fontData, weight: 700, style: "normal" }],
-  });
+  let png: Uint8Array;
+  try {
+    const svg = await satori(card as unknown as ReactNode, {
+      width: 1200,
+      height: 630,
+      fonts: [
+        { name: "Lato", data: regularFontData, weight: 400, style: "normal" },
+        { name: "Lato", data: boldFontData, weight: 700, style: "normal" },
+        { name: "Lato", data: boldFontData, weight: 800, style: "normal" },
+      ],
+    });
 
-  const resvg = new Resvg(svg, { fitTo: { mode: "width", value: 1200 } });
-  const rendered = resvg.render();
-  const png = rendered.asPng();
+    const resvg = new Resvg(svg, { fitTo: { mode: "width", value: 1200 } });
+    const rendered = resvg.render();
+    png = rendered.asPng();
+  } catch (err) {
+    console.error("[og] render failed:", err);
+    return fallbackImage(context.url);
+  }
   // Slice to a plain ArrayBuffer so it satisfies BodyInit across all type environments
   const body = png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength);
 

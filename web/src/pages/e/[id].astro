@@ -28,8 +28,7 @@ const isReady = episode?.status === "ready";
 const isFailed = episode?.status === "failed";
 const isProcessing = !isReady && !isFailed && !fetchError;
 
-// Use the static social card until the Worker-safe PNG renderer is reliable.
-const ogImage = new URL("/og-default.png", Astro.url).href;
+const ogImage = new URL(`/og/${id}.png`, Astro.url).href;
 
 // Build the shareable tweet text.
 const tweetText = episode
