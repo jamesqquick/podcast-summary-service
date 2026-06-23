@@ -10,10 +10,14 @@ export const prerender = false;
 let resvgReady = false;
 let resvgInitPromise: Promise<void> | null = null;
 
-function ensureResvg(requestUrl: URL): Promise<void> {
+function fetchStaticAsset(env: CloudflareEnv, requestUrl: URL, path: string): Promise<Response> {
+  return env.ASSETS.fetch(new Request(new URL(path, requestUrl)));
+}
+
+function ensureResvg(env: CloudflareEnv, requestUrl: URL): Promise<void> {
   if (resvgReady) return Promise.resolve();
   if (!resvgInitPromise) {
-    resvgInitPromise = fetch(new URL("/wasm/resvg.wasm", requestUrl))
+    resvgInitPromise = fetchStaticAsset(env, requestUrl, "/wasm/resvg.wasm")
       .then(async (res) => {
         if (!res.ok) throw new Error(`Failed to fetch resvg.wasm: ${res.status}`);
         return initWasm(await res.arrayBuffer());
@@ -256,7 +260,7 @@ export const GET: APIRoute = async (context) => {
 
   // Initialize resvg WASM
   try {
-    await ensureResvg(context.url);
+    await ensureResvg(env, context.url);
   } catch (err) {
     console.error("[og] resvg init failed:", err);
     return fallbackImage(context.url);
@@ -267,8 +271,8 @@ export const GET: APIRoute = async (context) => {
   let boldFontData: ArrayBuffer;
   try {
     const [regularFontRes, boldFontRes] = await Promise.all([
-      fetch(new URL("/fonts/lato-regular.ttf", context.url)),
-      fetch(new URL("/fonts/lato-extrabold.ttf", context.url)),
+      fetchStaticAsset(env, context.url, "/fonts/lato-regular.ttf"),
+      fetchStaticAsset(env, context.url, "/fonts/lato-extrabold.ttf"),
     ]);
     if (!regularFontRes.ok) throw new Error(`Regular font fetch failed: ${regularFontRes.status}`);
     if (!boldFontRes.ok) throw new Error(`Bold font fetch failed: ${boldFontRes.status}`);

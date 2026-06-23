@@ -4,6 +4,7 @@
 interface CloudflareEnv {
   // Bindings
   RATE_KV: KVNamespace;
+  ASSETS: Fetcher;
   /** Service binding to the jqq-podcast-generator backend Worker. */
   PODCAST_API: Fetcher;
 
