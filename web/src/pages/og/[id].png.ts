@@ -14,9 +14,9 @@ function ensureResvg(requestUrl: URL): Promise<void> {
   if (resvgReady) return Promise.resolve();
   if (!resvgInitPromise) {
     resvgInitPromise = fetch(new URL("/wasm/resvg.wasm", requestUrl))
-      .then((res) => {
+      .then(async (res) => {
         if (!res.ok) throw new Error(`Failed to fetch resvg.wasm: ${res.status}`);
-        return initWasm(res);
+        return initWasm(await res.arrayBuffer());
       })
       .then(() => {
         resvgReady = true;
@@ -28,6 +28,10 @@ function ensureResvg(requestUrl: URL): Promise<void> {
       });
   }
   return resvgInitPromise;
+}
+
+function fallbackImage(requestUrl: URL): Promise<Response> {
+  return fetch(new URL("/og-default.png", requestUrl));
 }
 
 // ── Waveform (deterministic per episode ID) ──────────────────────────────────
@@ -254,7 +258,7 @@ export const GET: APIRoute = async (context) => {
     await ensureResvg(context.url);
   } catch (err) {
     console.error("[og] resvg init failed:", err);
-    return new Response("Image renderer unavailable", { status: 500 });
+    return fallbackImage(context.url);
   }
 
   // Load Inter Bold font from static assets
@@ -265,7 +269,7 @@ export const GET: APIRoute = async (context) => {
     fontData = await fontRes.arrayBuffer();
   } catch (err) {
     console.error("[og] font load failed:", err);
-    return new Response("Font unavailable", { status: 500 });
+    return fallbackImage(context.url);
   }
 
   // Render: element tree → SVG → PNG
