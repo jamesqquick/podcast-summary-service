@@ -2,7 +2,9 @@ import type { APIRoute } from "astro";
 import type { ReactNode } from "react";
 import satori from "satori";
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
-import { getEpisode } from "../../lib/api";
+import type { EpisodeView } from "../../lib/api";
+
+export const prerender = false;
 
 // ── WASM init (once per CF Workers isolate) ──────────────────────────────────
 let resvgReady = false;
@@ -216,12 +218,14 @@ export const GET: APIRoute = async (context) => {
   const { id } = context.params;
   if (!id) return new Response("Not found", { status: 404 });
 
-  const apiUrl = import.meta.env.API_URL ?? "";
-  const apiToken = import.meta.env.API_TOKEN;
-
-  let episode: Awaited<ReturnType<typeof getEpisode>> | null = null;
+  const env = context.locals.runtime.env;
+  let episode: EpisodeView | null = null;
   try {
-    episode = await getEpisode(apiUrl, id, apiToken);
+    const upstream = await env.PODCAST_API.fetch(
+      new Request(`http://podcast-api/episodes/${id}`),
+    );
+    if (!upstream.ok) return new Response("Not found", { status: upstream.status });
+    episode = await upstream.json() as EpisodeView;
   } catch {
     return new Response("Not found", { status: 404 });
   }
