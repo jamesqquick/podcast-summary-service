@@ -100,6 +100,8 @@ To deploy the web app:
 pnpm --dir web deploy
 ```
 
+When connected through Cloudflare Git integration, pushes to `main` will trigger the backend Worker and web app builds automatically.
+
 ## API
 
 ### `POST /episodes`
