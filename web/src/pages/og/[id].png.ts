@@ -1,6 +1,4 @@
 import type { APIRoute } from "astro";
-import type { ReactNode } from "react";
-import satori from "satori";
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
 import resvgWasm from "@resvg/resvg-wasm/index_bg.wasm";
 import type { EpisodeView } from "../../lib/api";
@@ -65,158 +63,57 @@ const C = {
   FAINT: "#4a4960",
 } as const;
 
-// ── Satori element helpers ────────────────────────────────────────────────────
-type SatoriChild = SatoriNode | string | null | undefined;
-interface SatoriNode {
-  type: string;
-  props: Record<string, unknown> & { children?: SatoriChild | SatoriChild[] };
-}
-
-function h(
-  type: string,
-  style: Record<string, unknown>,
-  ...children: SatoriChild[]
-): SatoriNode {
-  const kids = children.filter((c) => c != null);
-  return {
-    type,
-    props: {
-      style,
-      children: kids.length === 0 ? undefined : kids.length === 1 ? kids[0] : kids,
-    },
-  };
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 // ── OG card layout (1200 × 630) ───────────────────────────────────────────────
-function buildCard(title: string, meta: string, bars: number[]): SatoriNode {
+function buildCard(title: string, meta: string, bars: number[]): string {
   const BAR_W = 9;
   const BAR_GAP = 5;
   const BAR_MAX_H = 68;
 
   // Truncate long titles to two visual lines
-  const displayTitle = title.length > 82 ? title.slice(0, 80) + "…" : title;
+  const displayTitle = escapeXml(title.length > 82 ? title.slice(0, 80) + "..." : title);
+  const displayMeta = escapeXml(meta);
+  const waveBars = bars
+    .map((barH, i) => {
+      const height = Math.max(4, Math.round(barH * BAR_MAX_H));
+      const x = 72 + i * (BAR_W + BAR_GAP);
+      const y = 534 - height;
+      const opacity = (0.25 + barH * 0.75).toFixed(3);
+      return `<rect x="${x}" y="${y}" width="${BAR_W}" height="${height}" rx="3" fill="${C.ACCENT}" opacity="${opacity}" />`;
+    })
+    .join("");
 
-  return h(
-    "div",
-    {
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      padding: "56px 72px 52px",
-      background: `linear-gradient(135deg, ${C.BG} 0%, ${C.SURFACE} 55%, ${C.DEEP} 100%)`,
-      fontFamily: "Lato",
-      position: "relative",
-      overflow: "hidden",
-    },
-
-    // Background glow blob
-    h("div", {
-      position: "absolute",
-      top: "-100px",
-      left: "-80px",
-      width: "520px",
-      height: "520px",
-      background: `radial-gradient(circle, rgba(124,58,237,0.20) 0%, transparent 70%)`,
-      borderRadius: "50%",
-    }),
-
-    // Top row — Dropcast brand mark
-    h(
-      "div",
-      {
-        display: "flex",
-        alignItems: "center",
-        gap: "14px",
-        marginBottom: "auto",
-      },
-      // Purple square mark
-      h(
-        "div",
-        {
-          width: "44px",
-          height: "44px",
-          background: C.ACCENT,
-          borderRadius: "12px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        },
-        h("div", {
-          width: "16px",
-          height: "22px",
-          background: "white",
-          borderRadius: "3px 9px 9px 3px",
-        }),
-      ),
-      // Wordmark: "Drop" + "cast"
-      h(
-        "div",
-        { display: "flex", alignItems: "center", gap: "0px" },
-        h(
-          "span",
-          { color: C.TEXT, fontSize: "26px", fontWeight: 700, letterSpacing: "-0.5px" },
-          "Drop",
-        ),
-        h(
-          "span",
-          { color: C.ACCENT_LIGHT, fontSize: "26px", fontWeight: 700, letterSpacing: "-0.5px" },
-          "cast",
-        ),
-      ),
-    ),
-
-    // Episode title + meta
-    h(
-      "div",
-      {
-        display: "flex",
-        flexDirection: "column",
-        gap: "18px",
-        marginTop: "32px",
-        flex: 1,
-        justifyContent: "center",
-      },
-      h(
-        "div",
-        {
-          fontSize: "54px",
-          fontWeight: 800,
-          color: C.TEXT,
-          lineHeight: 1.08,
-          letterSpacing: "-1.5px",
-          maxWidth: "940px",
-        },
-        displayTitle,
-      ),
-      h("div", { fontSize: "21px", color: C.MUTED }, meta),
-    ),
-
-    // Waveform bars
-    h(
-      "div",
-      {
-        display: "flex",
-        alignItems: "flex-end",
-        gap: `${BAR_GAP}px`,
-        height: `${BAR_MAX_H}px`,
-        marginTop: "28px",
-        marginBottom: "26px",
-      },
-      ...bars.map((barH) =>
-        h("div", {
-          width: `${BAR_W}px`,
-          height: `${Math.max(4, Math.round(barH * BAR_MAX_H))}px`,
-          background: C.ACCENT,
-          borderRadius: "3px",
-          opacity: 0.25 + barH * 0.75,
-        }),
-      ),
-    ),
-
-    // Footer — domain
-    h("div", { fontSize: "16px", color: C.FAINT, letterSpacing: "0.4px" }, "dropcast.app"),
-  );
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="${C.BG}" />
+      <stop offset="0.55" stop-color="${C.SURFACE}" />
+      <stop offset="1" stop-color="${C.DEEP}" />
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="${C.ACCENT}" stop-opacity="0.20" />
+      <stop offset="1" stop-color="${C.ACCENT}" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <circle cx="180" cy="160" r="260" fill="url(#glow)" />
+  <rect x="72" y="56" width="44" height="44" rx="12" fill="${C.ACCENT}" />
+  <rect x="86" y="67" width="16" height="22" rx="5" fill="#fff" />
+  <text x="130" y="89" fill="${C.TEXT}" font-family="Lato" font-size="26" font-weight="700" letter-spacing="-0.5">Drop</text>
+  <text x="190" y="89" fill="${C.ACCENT_LIGHT}" font-family="Lato" font-size="26" font-weight="700" letter-spacing="-0.5">cast</text>
+  <text x="72" y="282" fill="${C.TEXT}" font-family="Lato" font-size="54" font-weight="800" letter-spacing="-1.5">${displayTitle}</text>
+  <text x="72" y="331" fill="${C.MUTED}" font-family="Lato" font-size="21" font-weight="400">${displayMeta}</text>
+  ${waveBars}
+  <text x="72" y="575" fill="${C.FAINT}" font-family="Lato" font-size="16" font-weight="400" letter-spacing="0.4">dropcast.app</text>
+</svg>`;
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
@@ -263,7 +160,7 @@ export const GET: APIRoute = async (context) => {
     return fallbackImage(context.url);
   }
 
-  // Satori supports TTF/OTF/WOFF, not WOFF2/EOT.
+  // Resvg accepts raw TTF buffers for SVG text rendering.
   let regularFontData: ArrayBuffer;
   let boldFontData: ArrayBuffer;
   try {
@@ -285,17 +182,14 @@ export const GET: APIRoute = async (context) => {
   // Render: element tree → SVG → PNG
   let png: Uint8Array;
   try {
-    const svg = await satori(card as unknown as ReactNode, {
-      width: 1200,
-      height: 630,
-      fonts: [
-        { name: "Lato", data: regularFontData, weight: 400, style: "normal" },
-        { name: "Lato", data: boldFontData, weight: 700, style: "normal" },
-        { name: "Lato", data: boldFontData, weight: 800, style: "normal" },
-      ],
+    const resvg = new Resvg(card, {
+      fitTo: { mode: "width", value: 1200 },
+      font: {
+        defaultFontFamily: "Lato",
+        loadSystemFonts: false,
+        fontBuffers: [new Uint8Array(regularFontData), new Uint8Array(boldFontData)],
+      },
     });
-
-    const resvg = new Resvg(svg, { fitTo: { mode: "width", value: 1200 } });
     const rendered = resvg.render();
     png = rendered.asPng();
   } catch (err) {
