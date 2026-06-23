@@ -22,3 +22,8 @@ type Runtime = import("@astrojs/cloudflare").Runtime<CloudflareEnv>;
 declare namespace App {
   interface Locals extends Runtime {}
 }
+
+declare module "*.wasm" {
+  const mod: WebAssembly.Module;
+  export default mod;
+}

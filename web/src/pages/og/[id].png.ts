@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import type { ReactNode } from "react";
 import satori from "satori";
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
+import resvgWasm from "@resvg/resvg-wasm/index_bg.wasm";
 import type { EpisodeView } from "../../lib/api";
 
 export const prerender = false;
@@ -14,14 +15,10 @@ function fetchStaticAsset(env: CloudflareEnv, requestUrl: URL, path: string): Pr
   return env.ASSETS.fetch(new Request(new URL(path, requestUrl)));
 }
 
-function ensureResvg(env: CloudflareEnv, requestUrl: URL): Promise<void> {
+function ensureResvg(): Promise<void> {
   if (resvgReady) return Promise.resolve();
   if (!resvgInitPromise) {
-    resvgInitPromise = fetchStaticAsset(env, requestUrl, "/wasm/resvg.wasm")
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`Failed to fetch resvg.wasm: ${res.status}`);
-        return initWasm(await res.arrayBuffer());
-      })
+    resvgInitPromise = initWasm(resvgWasm)
       .then(() => {
         resvgReady = true;
       })
@@ -260,7 +257,7 @@ export const GET: APIRoute = async (context) => {
 
   // Initialize resvg WASM
   try {
-    await ensureResvg(env, context.url);
+    await ensureResvg();
   } catch (err) {
     console.error("[og] resvg init failed:", err);
     return fallbackImage(context.url);
