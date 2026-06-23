@@ -28,8 +28,8 @@ const isReady = episode?.status === "ready";
 const isFailed = episode?.status === "failed";
 const isProcessing = !isReady && !isFailed && !fetchError;
 
-// Per-episode OG card — only set for ready episodes; falls back to og-default.png otherwise.
-const ogImage = isReady ? new URL(`/og/${id}.png`, Astro.url).href : undefined;
+// Use the static social card until the Worker-safe PNG renderer is reliable.
+const ogImage = new URL("/og-default.png", Astro.url).href;
 
 // Build the shareable tweet text.
 const tweetText = episode
