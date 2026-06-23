@@ -1,6 +1,6 @@
 {
   "name": "dropcast-web",
-  "account_id": "4426cbeacb457b1ca1b865d6c36ced0d",
+  "account_id": "e9bc21da719562a3e45d77de7dd042de",
   "compatibility_date": "2026-06-19",
   "compatibility_flags": ["nodejs_compat"],
   "main": "dist/_worker.js",
@@ -9,33 +9,28 @@
   },
   "observability": { "enabled": true },
 
-  "kv_namespaces": [
+  // Service binding — calls the backend Worker directly (no public HTTP, no shared token).
+  "services": [
     {
-      "binding": "RATE_KV",
-      "id": "4fc7c807e010467b97347dfe981a8995",
-      "preview_id": "0082c95a2e5c4ea68ad782df7ccdd108"
+      "binding": "PODCAST_API",
+      "service": "jqq-podcast-generator"
     }
   ],
 
-  // Set these as vars or secrets:
-  //   wrangler secret put API_TOKEN
-  //   wrangler secret put API_URL   (or set as a plain var below)
-  //   wrangler secret put TURNSTILE_SECRET_KEY
+  "kv_namespaces": [
+    {
+      "binding": "RATE_KV",
+      "id": "891f015b79864028b07c9e5804252e57"
+    }
+  ],
+
+  // Secrets — provision via: wrangler secret put TURNSTILE_SECRET_KEY
   "vars": {
-    // The URL of the Dropcast API Worker (no trailing slash).
-    // Override per environment as needed.
-    "API_URL": "https://jqq-podcast-generator.examples.workers.dev",
-    // Public Turnstile site key (safe to commit once you have one).
-    // Get from https://dash.cloudflare.com → Turnstile.
+    // Public Turnstile site key. Get from https://dash.cloudflare.com → Turnstile.
     "PUBLIC_TURNSTILE_SITE_KEY": "",
-    // Max generations per IP per day. Change without redeployment via Cloudflare dashboard.
+    // Max generations per IP per day.
     "IP_DAILY_LIMIT": "3",
-    // Set to any non-empty string to skip the per-IP rate limit check.
-    // Use in .dev.vars for local development only — never set in production.
+    // Non-empty = skip rate limit. Use in .dev.vars for local dev only.
     "DISABLE_RATE_LIMIT": ""
   }
-
-  // Secrets — do not put these here. Provision via:
-  //   wrangler secret put API_TOKEN
-  //   wrangler secret put TURNSTILE_SECRET_KEY
 }

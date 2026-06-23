@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import type { Env, EpisodeRecord, EpisodeView } from "../types";
 import { CreateEpisodeSchema } from "../lib/validation";
-import { requireApiToken } from "../lib/auth";
 import { NotFoundError, ValidationError } from "../lib/errors";
 import { generateEpisodeId, isValidEpisodeId } from "../lib/ids";
 import { resolveVoice } from "../lib/tts/voices";
@@ -10,7 +9,7 @@ import { EpisodeStore } from "../lib/storage/episodes";
 export const episodes = new Hono<{ Bindings: Env }>();
 
 /** POST /episodes — accept links and kick off generation. */
-episodes.post("/", requireApiToken, async (c) => {
+episodes.post("/", async (c) => {
   const body = await readJson(c.req.raw);
   const parsed = CreateEpisodeSchema.safeParse(body);
   if (!parsed.success) {
@@ -51,7 +50,7 @@ episodes.post("/", requireApiToken, async (c) => {
 });
 
 /** GET /episodes/:id — current status and (when ready) the audio URL. */
-episodes.get("/:id", requireApiToken, async (c) => {
+episodes.get("/:id", async (c) => {
   const id = c.req.param("id");
   if (!isValidEpisodeId(id)) throw new ValidationError("Malformed episode id");
 

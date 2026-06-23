@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "jqq-podcast-generator",
+  "account_id": "e9bc21da719562a3e45d77de7dd042de",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-19",
   "compatibility_flags": ["nodejs_compat"],

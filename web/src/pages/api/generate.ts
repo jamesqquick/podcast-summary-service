@@ -2,14 +2,13 @@
  * POST /api/generate
  *
  * Public entry point for episode creation. Runs two guards before forwarding
- * to the bearer-gated API Worker:
+ * to the backend Worker via service binding (no public HTTP, no shared token):
  *
  *   1. Turnstile siteverify  — rejects bots before any AI cost is incurred.
  *      Bypassed in local dev when TURNSTILE_SECRET_KEY is not set.
  *
  *   2. Per-IP daily rate limit — caps each client IP at IP_DAILY_LIMIT (3)
- *      generations per day via KV. Bypassed when DISABLE_RATE_LIMIT is set
- *      (use .dev.vars in local development).
+ *      generations per day via KV. Bypassed when DISABLE_RATE_LIMIT is set.
  */
 import type { APIRoute } from "astro";
 import { verifyTurnstileToken } from "../../lib/turnstile";
@@ -19,12 +18,6 @@ export const prerender = false;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
-  const apiUrl = env.API_URL ?? import.meta.env.API_URL;
-  const apiToken = env.API_TOKEN ?? import.meta.env.API_TOKEN;
-
-  if (!apiUrl) {
-    return Response.json({ error: "API_URL is not configured" }, { status: 500 });
-  }
 
   let body: Record<string, unknown>;
   try {
@@ -46,7 +39,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
   }
 
-  // Strip the Turnstile token before forwarding — the API Worker doesn't know about it.
+  // Strip the Turnstile token before forwarding — the backend doesn't know about it.
   const { cfTurnstileToken: _stripped, ...upstreamBody } = body;
 
   // ── Guard 2: Per-IP daily rate limit ─────────────────────────────────────
@@ -60,29 +53,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
       tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
       tomorrow.setUTCHours(0, 0, 0, 0);
       return Response.json(
-        {
-          error: "Daily limit reached",
-          limit,
-          reset: tomorrow.toISOString().slice(0, 10),
-        },
+        { error: "Daily limit reached", limit, reset: tomorrow.toISOString().slice(0, 10) },
         { status: 429 },
       );
     }
   }
 
-  // ── Forward to upstream API Worker ───────────────────────────────────────
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (apiToken) {
-    headers["Authorization"] = `Bearer ${apiToken}`;
-  }
-
-  const upstream = await fetch(`${apiUrl}/episodes`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(upstreamBody),
-  });
+  // ── Forward to backend via service binding ────────────────────────────────
+  const upstream = await env.PODCAST_API.fetch(
+    new Request("http://podcast-api/episodes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(upstreamBody),
+    }),
+  );
 
   const data = await upstream.json();
   return Response.json(data, { status: upstream.status });

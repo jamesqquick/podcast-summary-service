@@ -2,30 +2,27 @@
 // SSR — fetches episode data server-side so OG tags are in the initial HTML.
 import Layout from "../../layouts/Layout.astro";
 import { AudioPlayer } from "../../components/AudioPlayer";
-import { getEpisode } from "../../lib/api";
 import type { EpisodeView } from "../../lib/api";
 
 const { id } = Astro.params;
 if (!id) return Astro.redirect("/");
 
-// In Phase 1 the GET /episodes/:id endpoint will be public (no token).
-// Until then, use the server-side API token so the share page renders correctly.
-const apiUrl = import.meta.env.API_URL ?? "";
-const apiToken = import.meta.env.API_TOKEN;
+const env = Astro.locals.runtime.env;
 
 let episode: EpisodeView | null = null;
 let fetchError: string | null = null;
 
 try {
-  episode = await getEpisode(apiUrl, id, apiToken);
+  const res = await env.PODCAST_API.fetch(
+    new Request(`http://podcast-api/episodes/${id}`),
+  );
+  if (res.status === 404) return Astro.redirect("/");
+  if (!res.ok) throw new Error(`Backend returned ${res.status}`);
+  episode = await res.json() as EpisodeView;
 } catch (err) {
   fetchError = err instanceof Error ? err.message : "Could not load episode.";
 }
 
-// Redirect bad IDs cleanly.
-if (fetchError && fetchError.includes("404")) {
-  return Astro.redirect("/");
-}
 
 const isReady = episode?.status === "ready";
 const isFailed = episode?.status === "failed";

@@ -1,38 +1,29 @@
 /**
  * GET|HEAD /api/audio/:id
  *
- * Proxies audio from the Worker to the browser on the same origin, which
- * avoids two problems in local dev:
- *
- *   1. The Worker returns an audioUrl based on PUBLIC_BASE_URL (set to the
- *      production domain in wrangler.jsonc), not localhost, so the browser
- *      would try to fetch audio from the wrong host.
- *   2. The Worker sends no CORS headers, so the browser rejects cross-origin
- *      audio responses when Astro (4321) and the Worker (8787) are on
- *      different ports.
- *
- * Forwards Range headers so seeking works correctly in the AudioPlayer.
- * The audio endpoint on the Worker is already public (no auth required).
+ * Proxies audio from the backend Worker to the browser on the same origin,
+ * forwarding Range headers so seeking works correctly in the AudioPlayer.
  */
 import type { APIRoute } from "astro";
 
 export const prerender = false;
 
-async function proxyAudio(id: string, request: Request, headOnly: boolean): Promise<Response> {
-  const apiUrl = import.meta.env.API_URL;
-
-  if (!apiUrl) {
-    return new Response("API_URL is not configured", { status: 500 });
-  }
-
+async function proxyAudio(
+  id: string,
+  request: Request,
+  headOnly: boolean,
+  env: App.Locals["runtime"]["env"],
+): Promise<Response> {
   const upstreamHeaders: Record<string, string> = {};
   const range = request.headers.get("Range");
   if (range) upstreamHeaders["Range"] = range;
 
-  const upstream = await fetch(`${apiUrl}/episodes/${id}/audio.mp3`, {
-    method: headOnly ? "HEAD" : "GET",
-    headers: upstreamHeaders,
-  });
+  const upstream = await env.PODCAST_API.fetch(
+    new Request(`http://podcast-api/episodes/${id}/audio.mp3`, {
+      method: headOnly ? "HEAD" : "GET",
+      headers: upstreamHeaders,
+    }),
+  );
 
   const responseHeaders = new Headers();
   responseHeaders.set("Content-Type", upstream.headers.get("Content-Type") ?? "audio/mpeg");
@@ -54,8 +45,8 @@ async function proxyAudio(id: string, request: Request, headOnly: boolean): Prom
   });
 }
 
-export const GET: APIRoute = ({ params, request }) =>
-  proxyAudio(params.id!, request, false);
+export const GET: APIRoute = ({ params, request, locals }) =>
+  proxyAudio(params.id!, request, false, locals.runtime.env);
 
-export const HEAD: APIRoute = ({ params, request }) =>
-  proxyAudio(params.id!, request, true);
+export const HEAD: APIRoute = ({ params, request, locals }) =>
+  proxyAudio(params.id!, request, true, locals.runtime.env);
