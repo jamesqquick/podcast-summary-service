@@ -1,207 +1,165 @@
 # Podcast Summary Service
 
-A headless service that turns a list of links into an **entertaining, AI-generated audio podcast summary**.
+Turn a list of links into an AI-generated audio podcast.
 
-Give it a few URLs, it reads each page, writes one cohesive spoken-word script, narrates it with a natural-sounding voice, and hands back an MP3 you can listen to on the go.
+The backend Worker fetches each page, writes one spoken-word script with Workers AI, narrates it with Deepgram Aura, and stores the finished MP3 in R2. The web app provides a simple Dropcast UI for generating and listening to episodes.
 
-Built entirely on Cloudflare: a [Workers](https://developers.cloudflare.com/workers/) HTTP API, a durable [Workflow](https://developers.cloudflare.com/workflows/) for the generation pipeline, [Workers AI](https://developers.cloudflare.com/workers-ai/) for the script (Llama 4 Scout) and the voice (Deepgram Aura), and [R2](https://developers.cloudflare.com/r2/) for audio storage. No external API keys.
+## Stack
 
----
+- Cloudflare Workers for the API
+- Cloudflare Workflows for the generation pipeline
+- Workers AI for script generation and text-to-speech
+- R2 for episode metadata, segments, and final audio
+- Astro for the Dropcast web app
+- MCP for agent access to podcast generation
 
-## How it works
+## Repo Layout
 
-```
-POST /episodes ──▶ create episode record (R2) ──▶ start EpisodeWorkflow
-                                                        │
-                 ┌──────────────────────────────────────┴───────────────────────────┐
-                 ▼                  ▼                    ▼                  ▼
-            1. extract        2. write script      3. synthesize        4. stitch
-          (fetch + read       (Llama 4 Scout,      (Deepgram Aura,      (concat MP3
-           each link)          guided JSON)         one call/segment)    → audio.mp3)
-                 │                  │                    │                  │
-                 └─────────── progress + results persisted to R2 meta.json ┘
+- `src/` - backend Worker, API, workflow, storage, TTS, and MCP agent
+- `web/` - Dropcast frontend
+- `scripts/` - provisioning helpers
 
-GET /episodes/:id ──▶ status + audioUrl       GET /episodes/:id/audio.mp3 ──▶ the MP3
-```
+## What It Does
 
-Each stage is a durable, independently-retryable Workflow step. Transient failures (a flaky fetch, a model hiccup) retry just that step instead of regenerating the whole episode, and progress is written to R2 so status polling always reflects the latest state. A link that can't be read is skipped rather than failing the episode.
+- `POST /episodes` creates an episode from a list of URLs and starts the workflow
+- `GET /episodes/:id` returns episode status and metadata
+- `GET /episodes/:id/audio.mp3` streams the finished MP3 with Range support
+- `/mcp` exposes a `generate_podcast` tool for agent clients
+- The web app proxies browser requests to the backend through a Cloudflare service binding
 
-## Why these choices
+## Requirements
 
-- **Workflows** over a queue or cron: the pipeline is multi-step, externally-dependent, and benefits from per-step checkpointing, retries, and built-in status — exactly what Workflows provides. Large audio blobs are written to R2 and steps pass only small keys, sidestepping the 1 MiB step-result limit.
-- **Llama 4 Scout** (`@cf/meta/llama-4-scout-17b-16e-instruct`): 131k-token context comfortably fits many full articles, and `guided_json` gives reliable structured output.
-- **Deepgram Aura** (`@cf/deepgram/aura-1`): natural pacing and 12 voices, all on Workers AI — no third-party key. Swapping to a two-host format later is just alternating speakers.
+- Node.js 20+
+- `pnpm`
+- A Cloudflare account with Workers, R2, Workflows, Workers AI, and KV available
 
-## API
-
-All control endpoints require `Authorization: Bearer <API_TOKEN>`. The audio URL is public but unguessable (the episode id is a 128-bit random token), so it can be shared or dropped straight into a player.
-
-### `POST /episodes`
-
-Create an episode and start generation.
-
-```jsonc
-// Request body
-{
-  "links": ["https://example.com/a", "https://example.com/b"], // 1–25 http(s) URLs
-  "title": "My Morning Rundown",   // optional; otherwise the model writes one
-  "voice": "asteria"               // optional Aura voice (see list below)
-}
-```
-
-```jsonc
-// 202 Accepted
-{
-  "id": "ep_8x1k...",
-  "status": "queued",
-  "stage": "queued",
-  "title": "My Morning Rundown",
-  "voice": "asteria",
-  "links": ["https://example.com/a", "https://example.com/b"],
-  "sources": [],
-  "createdAt": "2026-06-19T13:00:00.000Z",
-  "updatedAt": "2026-06-19T13:00:00.000Z"
-}
-```
-
-### `GET /episodes/:id`
-
-Poll status. `status` moves `queued → processing → ready` (or `failed`); `stage` gives finer progress (`extracting`, `writing_script`, `synthesizing`, `stitching`, `done`).
-
-```jsonc
-// 200 OK (once ready)
-{
-  "id": "ep_8x1k...",
-  "status": "ready",
-  "stage": "done",
-  "title": "Your AI News Rundown",
-  "voice": "asteria",
-  "links": ["https://example.com/a", "https://example.com/b"],
-  "sources": [
-    { "url": "https://example.com/a", "title": "Headline A", "ok": true },
-    { "url": "https://example.com/b", "title": "Headline B", "ok": true }
-  ],
-  "segmentCount": 4,
-  "durationEstimateSeconds": 312,
-  "audioUrl": "https://<your-worker>/episodes/ep_8x1k.../audio.mp3",
-  "createdAt": "2026-06-19T13:00:00.000Z",
-  "updatedAt": "2026-06-19T13:02:10.000Z"
-}
-```
-
-### `GET /episodes/:id/audio.mp3`
-
-Streams the finished MP3 from R2. Supports `HEAD` and HTTP `Range` requests for seeking and progressive playback. No auth (capability URL).
-
-### Example
-
-```bash
-# Kick off an episode
-curl -X POST https://<your-worker>/episodes \
-  -H "Authorization: Bearer $API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{ "links": ["https://blog.cloudflare.com/workflows-ga/"] }'
-
-# Poll until status is "ready", then open the audioUrl
-curl https://<your-worker>/episodes/ep_8x1k... -H "Authorization: Bearer $API_TOKEN"
-```
-
-## Configuration
-
-| Name              | Type     | Where            | Purpose                                                        |
-| ----------------- | -------- | ---------------- | -------------------------------------------------------------- |
-| `API_TOKEN`       | secret   | `wrangler secret`| Bearer token for the control API. Generate: `openssl rand -hex 32`. |
-| `EPISODES_BUCKET` | R2       | `wrangler.jsonc` | Stores episode metadata, segments, and final audio.            |
-| `AI`              | Workers AI | `wrangler.jsonc` | Script generation + text-to-speech.                          |
-| `EPISODE_WORKFLOW`| Workflow | `wrangler.jsonc` | The generation pipeline.                                       |
-| `PUBLIC_BASE_URL` | var      | `wrangler.jsonc` | Base URL for absolute audio links. Empty = use request origin. |
-| `DEFAULT_VOICE`   | var      | `wrangler.jsonc` | Default Aura voice when a request omits one.                   |
-| `AI_GATEWAY_ID`   | var      | `wrangler.jsonc` | Optional [AI Gateway](https://developers.cloudflare.com/ai-gateway/). Empty = direct. |
-
-**Aura voices:** `angus`, `asteria`, `arcas`, `orion`, `orpheus`, `athena`, `luna`, `zeus`, `perseus`, `helios`, `hera`, `stella`.
-
-### AI Gateway (optional)
-
-Both Workers AI calls (script + speech) can be routed through [AI Gateway](https://developers.cloudflare.com/ai-gateway/) for request logging, token/cost analytics, caching, and rate limiting. It's off by default. To enable, set `AI_GATEWAY_ID` in `wrangler.jsonc`:
-
-- `"default"` — AI Gateway auto-creates a gateway on first request (no dashboard setup).
-- `"<your-gateway-id>"` — use a gateway you created in the dashboard.
-
-Leave it empty to call the Workers AI binding directly. No code changes either way.
-
-## Local development
+## Setup
 
 ```bash
 pnpm install
-cp .dev.vars.example .dev.vars   # set API_TOKEN
-pnpm dev                          # wrangler dev (R2 + Workflows run locally via Miniflare)
 ```
 
-Generate binding types after changing `wrangler.jsonc`:
+### Backend config
+
+Set the API secret:
 
 ```bash
-pnpm cf-typegen
+pnpm exec wrangler secret put API_TOKEN
+```
+
+Optional backend vars are configured in `wrangler.jsonc`:
+
+- `PUBLIC_BASE_URL`
+- `DEFAULT_VOICE`
+- `AI_GATEWAY_ID`
+
+### Web config
+
+The web app uses:
+
+- `PUBLIC_TURNSTILE_SITE_KEY`
+- `TURNSTILE_SECRET_KEY` (secret)
+- `RATE_KV`
+- `DISABLE_RATE_LIMIT`
+
+## Local Development
+
+Run the backend Worker:
+
+```bash
+pnpm dev
+```
+
+Run the web app in a second terminal:
+
+```bash
+pnpm --dir web dev
+```
+
+Useful checks:
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --dir web typecheck
 ```
 
 ## Deploy
 
-First authenticate to the target account — either `wrangler login` (interactive)
-or `export CLOUDFLARE_API_TOKEN=...`. For accounts with more than one membership,
-also `export CLOUDFLARE_ACCOUNT_ID=...` so the target is unambiguous.
-
-One-shot (creates buckets, deploys, generates + sets `API_TOKEN`):
+One-shot provisioning:
 
 ```bash
 CLOUDFLARE_ACCOUNT_ID=<account-id> ./scripts/provision.sh
 ```
 
-Or the equivalent manual steps:
+That script creates the R2 buckets, deploys the backend, and sets `API_TOKEN`.
+
+To deploy the web app:
 
 ```bash
-wrangler r2 bucket create podcast-summary-episodes
-wrangler r2 bucket create podcast-summary-episodes-preview
-pnpm run deploy
-wrangler secret put API_TOKEN   # paste a value, e.g. from `openssl rand -hex 32`
+pnpm --dir web deploy
 ```
 
-## Testing
+## API
 
-Pure logic (validation, HTML extraction, segmentation, prompt building, response parsing, stitching, range resolution, ids, auth) is covered by fast Node unit tests. Modules that touch bindings keep those bindings injectable so the logic stays testable without the Workers runtime.
+### `POST /episodes`
+
+Create a new episode.
+
+```jsonc
+{
+  "links": ["https://example.com/a", "https://example.com/b"],
+  "title": "My Morning Rundown",
+  "voice": "asteria"
+}
+```
+
+Auth:
 
 ```bash
-pnpm test         # run once
-pnpm test:watch   # watch mode
-pnpm typecheck    # regenerate types + tsc
+Authorization: Bearer <API_TOKEN>
 ```
 
-## Project structure
+### `GET /episodes/:id`
 
-```
-src/
-  index.ts                 Worker entry: exports the Workflow + fetch handler
-  app.ts                   Hono app: routing + error handling
-  types.ts                 Env + domain types (EpisodeRecord, EpisodeView, ...)
-  routes/episodes.ts       POST /episodes, GET /episodes/:id, audio streaming
-  workflow/
-    episode-workflow.ts    EpisodeWorkflow: extract → script → synthesize → stitch
-  lib/
-    auth.ts                Bearer-token middleware (constant-time compare)
-    validation.ts          Zod request schema
-    ids.ts                 Unguessable episode ids
-    errors.ts              Typed domain + HTTP errors
-    links/                 LinkExtractor interface + fetch impl + HTML→text
-    script/                Prompt building, LLM call, TTS segmentation
-    tts/                   Aura synthesis, voices, MP3 stitching
-    storage/episodes.ts    R2-backed episode persistence
-```
+Poll episode status. Returns `queued`, `processing`, `ready`, or `failed`.
 
-## Extending
+### `GET /episodes/:id/audio.mp3`
 
-- **JavaScript-heavy pages:** the workflow depends only on the `LinkExtractor` interface (`src/lib/links/extractor.ts`). Add a [Browser Rendering](https://developers.cloudflare.com/browser-rendering/)-backed implementation and swap it in without touching the pipeline.
-- **Two-host banter:** Aura exposes multiple voices; alternate speakers per segment and tweak the prompt to produce a dialogue script.
-- **Agentic Inbox integration:** this service is intentionally headless. A future caller (e.g. an email inbox that collects links) just `POST`s a list of links and polls for the audio URL.
+Streams the finished MP3. Supports `HEAD` and HTTP `Range` requests.
 
-## Known trade-offs
+## Web App
 
-- **MP3 stitching** concatenates per-segment MP3 frame data. Standard players decode this seamlessly; a future enhancement could re-mux for perfectly clean frame boundaries.
-- **Extraction** uses fetch + a heuristic HTML reader, which covers static and server-rendered pages. Sites that require JavaScript are best handled by adding the Browser Rendering extractor above.
+- `/` - marketing homepage
+- `/create` - link entry and generation form
+- `/e/:id` - episode playback page
+- `/api/generate` - public generation endpoint with Turnstile and rate limiting
+- `/api/episodes/:id` - status proxy
+- `/api/audio/:id` - same-origin audio proxy for the player
+- `/og/:id.png` - share image for ready episodes
+
+## MCP Tool
+
+The backend also exposes a private MCP endpoint at `/mcp`.
+
+Tool:
+
+- `generate_podcast`
+
+Inputs:
+
+- `urls` - 1 to 25 URLs
+- `title` - optional episode title
+- `voice` - optional Aura voice
+
+## Voices
+
+Supported Aura voices:
+
+`angus`, `asteria`, `arcas`, `orion`, `orpheus`, `athena`, `luna`, `zeus`, `perseus`, `helios`, `hera`, `stella`
+
+## Notes
+
+- Pages that cannot be read are skipped instead of failing the whole episode.
+- The workflow persists progress in R2 so polling always reflects the latest state.
+- The web app uses a service binding, so browser traffic does not need to talk to the backend Worker directly.
